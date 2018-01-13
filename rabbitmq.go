@@ -8,7 +8,7 @@ type Action func([]byte) error
 
 type RabbitMq interface {
 	Initialize() error
-	Publish(body []byte, contentType string) error
+	Publish(body []byte) error
 	Listen(action Action) error
 	Close()
 }
@@ -57,7 +57,7 @@ func (r *rabbitMq) Initialize() error {
 	return nil
 }
 
-func (r *rabbitMq) Publish(body []byte, contentType string) error {
+func (r *rabbitMq) Publish(body []byte) error {
 
 	err := r.Channel.Publish(
 		r.Config.Exchange,
@@ -65,8 +65,7 @@ func (r *rabbitMq) Publish(body []byte, contentType string) error {
 		false,        // mandatory
 		false,        // immediate
 		amqp.Publishing{
-			ContentType: contentType,
-			Body:        body,
+			Body: body,
 		},
 	)
 

@@ -1,12 +1,11 @@
 package rabbitmq
 
 import (
-	"encoding/json"
 	"sync"
 )
 
 type Client interface {
-	Publish(body interface{}) error
+	Publish(body []byte) error
 	Listen(action Action) error
 	Close()
 }
@@ -22,16 +21,8 @@ func NewClient(config Config) (Client, error) {
 	return &client{config, publisher}, nil
 }
 
-func (c *client) Publish(body interface{}) error {
-	marshaled, err := json.Marshal(body)
-
-	if err != nil {
-		return err
-	}
-
-	err = c.Publisher.Publish(marshaled, "application/json")
-
-	return err
+func (c *client) Publish(body []byte) error {
+	return c.Publisher.Publish(body)
 }
 
 func (c *client) Listen(action Action) error {
