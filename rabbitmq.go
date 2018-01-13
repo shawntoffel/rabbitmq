@@ -4,6 +4,8 @@ import (
 	"github.com/streadway/amqp"
 )
 
+type Action func([]byte) error
+
 type RabbitMq interface {
 	Initialize() error
 	Publish(body []byte, contentType string) error
@@ -17,8 +19,6 @@ type rabbitMq struct {
 	Channel    *amqp.Channel
 	Queue      *amqp.Queue
 }
-
-type Action func([]byte) error
 
 func NewRabbitMq(config Config) RabbitMq {
 	return &rabbitMq{Config: config}
@@ -74,7 +74,7 @@ func (r *rabbitMq) Publish(body []byte, contentType string) error {
 }
 
 func (r *rabbitMq) Listen(action Action) error {
-	msgs, err := r.Channel.Consume(
+	messages, err := r.Channel.Consume(
 		r.Queue.Name, // queue
 		"",           // consumer
 		true,         // auto-ack
@@ -89,8 +89,8 @@ func (r *rabbitMq) Listen(action Action) error {
 	}
 
 	go func() {
-		for d := range msgs {
-			action(d.Body)
+		for message := range messages {
+			action(message.Body)
 		}
 	}()
 
