@@ -9,7 +9,8 @@ type Action func([]byte) error
 type RabbitMq interface {
 	Initialize() error
 	Publish(body []byte) error
-	Listen(action Action) error
+	Listen(action Action)
+	Errors() <-chan error
 	Close()
 }
 
@@ -18,10 +19,15 @@ type rabbitMq struct {
 	Connection *amqp.Connection
 	Channel    *amqp.Channel
 	Queue      *amqp.Queue
+	Error      chan error
 }
 
 func NewRabbitMq(config Config) RabbitMq {
-	return &rabbitMq{Config: config}
+	rmq := rabbitMq{}
+	rmq.Config = config
+	rmq.Error = make(chan error, 0)
+
+	return &rmq
 }
 
 func (r *rabbitMq) Initialize() error {
@@ -72,7 +78,7 @@ func (r *rabbitMq) Publish(body []byte) error {
 	return err
 }
 
-func (r *rabbitMq) Listen(action Action) error {
+func (r *rabbitMq) Listen(action Action) {
 	messages, err := r.Channel.Consume(
 		r.Queue.Name, // queue
 		"",           // consumer
@@ -84,22 +90,32 @@ func (r *rabbitMq) Listen(action Action) error {
 	)
 
 	if err != nil {
-		return err
+		r.Error <- err
+
+		return
 	}
 
 	go func() {
 		for message := range messages {
-			action(message.Body)
+			err := action(message.Body)
+
+			if err != nil {
+				r.Error <- err
+			}
 		}
 	}()
 
-	forever := make(chan bool)
-	<-forever
+	//	forever := make(chan bool)
+	//	<-forever
+}
 
-	return nil
+func (r *rabbitMq) Errors() <-chan error {
+	return r.Error
 }
 
 func (r *rabbitMq) Close() {
 	defer r.Connection.Close()
 	defer r.Channel.Close()
+
+	close(r.Error)
 }
