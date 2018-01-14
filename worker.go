@@ -1,9 +1,5 @@
 package rabbitmq
 
-import (
-	"fmt"
-)
-
 type Worker interface {
 	Start() <-chan error
 	Stop()
@@ -26,9 +22,6 @@ func NewWorker(id int, config Config, action Action) Worker {
 }
 
 func (w *worker) Start() <-chan error {
-
-	fmt.Println("Starting worker", w.Id)
-
 	errors := make(chan error, 0)
 
 	messages, err := w.RabbitMq.Listen()
@@ -43,8 +36,6 @@ func (w *worker) Start() <-chan error {
 		for {
 			select {
 			case message := <-messages:
-				fmt.Println("Worker", w.Id, "is handling request.")
-
 				err := w.Action(message)
 
 				if err != nil {
