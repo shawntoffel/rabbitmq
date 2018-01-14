@@ -9,8 +9,7 @@ type Action func([]byte) error
 type RabbitMq interface {
 	Initialize() error
 	Publish(body []byte) error
-	Listen(action Action)
-	Errors() <-chan error
+	Listen() (<-chan []byte, error)
 	Close()
 }
 
@@ -19,13 +18,11 @@ type rabbitMq struct {
 	Connection *amqp.Connection
 	Channel    *amqp.Channel
 	Queue      *amqp.Queue
-	Error      chan error
 }
 
 func NewRabbitMq(config Config) RabbitMq {
 	rmq := rabbitMq{}
 	rmq.Config = config
-	rmq.Error = make(chan error, 0)
 
 	return &rmq
 }
@@ -78,7 +75,10 @@ func (r *rabbitMq) Publish(body []byte) error {
 	return err
 }
 
-func (r *rabbitMq) Listen(action Action) {
+func (r *rabbitMq) Listen() (<-chan []byte, error) {
+
+	received := make(chan []byte, 0)
+
 	messages, err := r.Channel.Consume(
 		r.Queue.Name, // queue
 		"",           // consumer
@@ -90,32 +90,19 @@ func (r *rabbitMq) Listen(action Action) {
 	)
 
 	if err != nil {
-		r.Error <- err
-
-		return
+		return received, err
 	}
 
 	go func() {
 		for message := range messages {
-			err := action(message.Body)
-
-			if err != nil {
-				r.Error <- err
-			}
+			received <- message.Body
 		}
 	}()
 
-	//	forever := make(chan bool)
-	//	<-forever
-}
-
-func (r *rabbitMq) Errors() <-chan error {
-	return r.Error
+	return received, nil
 }
 
 func (r *rabbitMq) Close() {
 	defer r.Connection.Close()
 	defer r.Channel.Close()
-
-	close(r.Error)
 }
