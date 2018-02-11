@@ -42,12 +42,18 @@ func (r *rabbitMq) Initialize() error {
 
 	q, err := ch.QueueDeclare(
 		r.Config.QueueName,
-		false,
+		r.Config.Durable,
 		false,
 		false,
 		false,
 		nil,
 	)
+
+	if err != nil {
+		return err
+	}
+
+	err = r.initializeExchange(ch)
 
 	if err != nil {
 		return err
@@ -105,4 +111,34 @@ func (r *rabbitMq) Listen() (<-chan []byte, error) {
 func (r *rabbitMq) Close() {
 	defer r.Connection.Close()
 	defer r.Channel.Close()
+}
+
+func (r *rabbitMq) initializeExchange(ch *amqp.Channel) error {
+	if r.Config.Exchange == "" {
+		return nil
+	}
+
+	err := ch.ExchangeDeclare(
+		r.Config.Exchange,
+		r.Config.ExchangeType,
+		r.Config.Durable,
+		false,
+		false,
+		false,
+		nil,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	err = ch.QueueBind(
+		r.Config.QueueName,
+		"",
+		r.Config.Exchange,
+		false,
+		nil,
+	)
+
+	return err
 }

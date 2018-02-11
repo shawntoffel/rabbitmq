@@ -11,11 +11,11 @@ type client struct {
 	Publisher RabbitMq
 }
 
-func NewClient(config Config) Client {
+func NewClient(config Config) (Client, error) {
 	publisher := NewRabbitMq(config)
-	publisher.Initialize()
+	err := publisher.Initialize()
 
-	return &client{config, publisher}
+	return &client{config, publisher}, err
 }
 
 func (c *client) Publish(body []byte) error {
