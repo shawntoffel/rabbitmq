@@ -40,14 +40,7 @@ func (r *rabbitMq) Initialize() error {
 		return err
 	}
 
-	q, err := ch.QueueDeclare(
-		r.Config.QueueName,
-		r.Config.Durable,
-		false,
-		false,
-		false,
-		nil,
-	)
+	q, err := r.initializeQueue(ch)
 
 	if err != nil {
 		return err
@@ -61,7 +54,7 @@ func (r *rabbitMq) Initialize() error {
 
 	r.Connection = conn
 	r.Channel = ch
-	r.Queue = &q
+	r.Queue = q
 
 	return nil
 }
@@ -70,9 +63,9 @@ func (r *rabbitMq) Publish(body []byte) error {
 
 	err := r.Channel.Publish(
 		r.Config.Exchange,
-		r.Queue.Name, // routing key
-		false,        // mandatory
-		false,        // immediate
+		r.Config.QueueName, // routing key
+		false,              // mandatory
+		false,              // immediate
 		amqp.Publishing{
 			Body: body,
 		},
@@ -86,13 +79,13 @@ func (r *rabbitMq) Listen() (<-chan []byte, error) {
 	received := make(chan []byte, 0)
 
 	messages, err := r.Channel.Consume(
-		r.Queue.Name, // queue
-		"",           // consumer
-		true,         // auto-ack
-		false,        // exclusive
-		false,        // no-local
-		false,        // no-wait
-		nil,          // args
+		r.Config.QueueName, // queue
+		"",                 // consumer
+		true,               // auto-ack
+		false,              // exclusive
+		false,              // no-local
+		false,              // no-wait
+		nil,                // args
 	)
 
 	if err != nil {
@@ -111,6 +104,23 @@ func (r *rabbitMq) Listen() (<-chan []byte, error) {
 func (r *rabbitMq) Close() {
 	defer r.Connection.Close()
 	defer r.Channel.Close()
+}
+
+func (r *rabbitMq) initializeQueue(ch *amqp.Channel) (*amqp.Queue, error) {
+	if r.Config.ExchangeOnly {
+		return nil, nil
+	}
+
+	q, err := ch.QueueDeclare(
+		r.Config.QueueName,
+		r.Config.Durable,
+		false,
+		false,
+		false,
+		nil,
+	)
+
+	return &q, err
 }
 
 func (r *rabbitMq) initializeExchange(ch *amqp.Channel) error {
@@ -132,13 +142,15 @@ func (r *rabbitMq) initializeExchange(ch *amqp.Channel) error {
 		return err
 	}
 
-	err = ch.QueueBind(
-		r.Config.QueueName,
-		"",
-		r.Config.Exchange,
-		false,
-		nil,
-	)
+	if !r.Config.ExchangeOnly {
+		err = ch.QueueBind(
+			r.Config.QueueName,
+			"",
+			r.Config.Exchange,
+			false,
+			nil,
+		)
+	}
 
 	return err
 }
