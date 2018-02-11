@@ -28,7 +28,12 @@ func (c *client) Listen(action Action) <-chan error {
 
 	for i := 0; i < c.Config.ConsumerCount; i++ {
 		go func(id int) {
-			worker := NewWorker(id, c.Config, action)
+			worker, err := NewWorker(id, c.Config, action)
+
+			if err != nil {
+				errors <- err
+				return
+			}
 
 			workerErrors := worker.Start()
 

@@ -12,13 +12,13 @@ type worker struct {
 	Quit     chan bool
 }
 
-func NewWorker(id int, config Config, action Action) Worker {
+func NewWorker(id int, config Config, action Action) (Worker, error) {
 	queue := NewRabbitMq(config)
-	queue.Initialize()
+	err := queue.Initialize()
 
 	quit := make(chan bool, 0)
 
-	return &worker{id, queue, action, quit}
+	return &worker{id, queue, action, quit}, err
 }
 
 func (w *worker) Start() <-chan error {
