@@ -18,6 +18,13 @@ func NewClient(config Config) (Client, error) {
 	return &client{config, publisher}, err
 }
 
+func NewPublisher(config Config) (Client, error) {
+	publisher := NewRabbitMq(config)
+	err := publisher.InitializeAsPublisher()
+
+	return &client{config, publisher}, err
+}
+
 func (c *client) Publish(body []byte) error {
 	return c.Publisher.Publish(body)
 }

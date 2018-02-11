@@ -8,6 +8,7 @@ type Action func([]byte) error
 
 type RabbitMq interface {
 	Initialize() error
+	InitializeAsPublisher() error
 	Publish(body []byte) error
 	Listen() (<-chan []byte, error)
 	Close()
@@ -28,35 +29,47 @@ func NewRabbitMq(config Config) RabbitMq {
 }
 
 func (r *rabbitMq) Initialize() error {
-	conn, err := amqp.Dial(r.Config.Url)
+	err := r.initializeChannel()
 
 	if err != nil {
 		return err
 	}
 
-	ch, err := conn.Channel()
+	err = r.initializeQueue()
 
 	if err != nil {
 		return err
 	}
 
-	q, err := r.initializeQueue(ch)
+	usingCustomExchange, err := r.initializeExchange()
 
 	if err != nil {
 		return err
 	}
 
-	err = r.initializeExchange(ch)
-
-	if err != nil {
-		return err
+	if usingCustomExchange {
+		err = r.Channel.QueueBind(
+			r.Config.QueueName,
+			"",
+			r.Config.Exchange,
+			false,
+			nil,
+		)
 	}
-
-	r.Connection = conn
-	r.Channel = ch
-	r.Queue = q
 
 	return nil
+}
+
+func (r *rabbitMq) InitializeAsPublisher() error {
+	err := r.initializeChannel()
+
+	if err != nil {
+		return err
+	}
+
+	_, err = r.initializeExchange()
+
+	return err
 }
 
 func (r *rabbitMq) Publish(body []byte) error {
@@ -106,10 +119,27 @@ func (r *rabbitMq) Close() {
 	defer r.Channel.Close()
 }
 
-func (r *rabbitMq) initializeQueue(ch *amqp.Channel) (*amqp.Queue, error) {
-	if r.Config.ExchangeOnly {
-		return nil, nil
+func (r *rabbitMq) initializeChannel() error {
+	conn, err := amqp.Dial(r.Config.Url)
+
+	if err != nil {
+		return err
 	}
+
+	ch, err := conn.Channel()
+
+	if err != nil {
+		return err
+	}
+
+	r.Connection = conn
+	r.Channel = ch
+
+	return nil
+}
+
+func (r *rabbitMq) initializeQueue() error {
+	ch := r.Channel
 
 	q, err := ch.QueueDeclare(
 		r.Config.QueueName,
@@ -120,13 +150,17 @@ func (r *rabbitMq) initializeQueue(ch *amqp.Channel) (*amqp.Queue, error) {
 		nil,
 	)
 
-	return &q, err
+	r.Queue = &q
+
+	return err
 }
 
-func (r *rabbitMq) initializeExchange(ch *amqp.Channel) error {
+func (r *rabbitMq) initializeExchange() (bool, error) {
 	if r.Config.Exchange == "" {
-		return nil
+		return false, nil
 	}
+
+	ch := r.Channel
 
 	err := ch.ExchangeDeclare(
 		r.Config.Exchange,
@@ -138,19 +172,5 @@ func (r *rabbitMq) initializeExchange(ch *amqp.Channel) error {
 		nil,
 	)
 
-	if err != nil {
-		return err
-	}
-
-	if !r.Config.ExchangeOnly {
-		err = ch.QueueBind(
-			r.Config.QueueName,
-			"",
-			r.Config.Exchange,
-			false,
-			nil,
-		)
-	}
-
-	return err
+	return true, err
 }
