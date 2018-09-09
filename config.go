@@ -1,5 +1,9 @@
 package rabbitmq
 
+const (
+	DefaultUrl = "amqp://localhost:5672"
+)
+
 type Config struct {
 	Url           string
 	QueueName     string
